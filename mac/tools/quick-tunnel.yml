@@ -1,0 +1,2 @@
+# Explicit empty configuration: never inherit another project's ingress/routes.
+{}

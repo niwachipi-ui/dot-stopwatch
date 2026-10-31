@@ -1,0 +1,116 @@
+--- WebSockets-2.7.2/src/WebSockets.h
++++ lib/WebSockets/src/WebSockets.h
+@@ -63,7 +63,9 @@
+ 
+ #if defined(ESP8266) || defined(ESP32)
+ 
+-#define WEBSOCKETS_MAX_DATA_SIZE (15 * 1024)
++#ifndef WEBSOCKETS_MAX_DATA_SIZE
++#define WEBSOCKETS_MAX_DATA_SIZE (15 * 1024)
++#endif
+ #define WEBSOCKETS_USE_BIG_MEM
+ #define GET_FREE_HEAP ESP.getFreeHeap()
+ // moves all Header strings to Flash (~300 Byte)
+@@ -79,7 +81,9 @@
+ 
+ #elif defined(STM32_DEVICE)
+ 
+-#define WEBSOCKETS_MAX_DATA_SIZE (15 * 1024)
++#ifndef WEBSOCKETS_MAX_DATA_SIZE
++#define WEBSOCKETS_MAX_DATA_SIZE (15 * 1024)
++#endif
+ #define WEBSOCKETS_USE_BIG_MEM
+ #define GET_FREE_HEAP System.freeMemory()
+ #define WEBSOCKETS_YIELD()
+@@ -87,7 +91,9 @@
+ 
+ #elif defined(ARDUINO_ARCH_RP2040)
+ 
+-#define WEBSOCKETS_MAX_DATA_SIZE (15 * 1024)
++#ifndef WEBSOCKETS_MAX_DATA_SIZE
++#define WEBSOCKETS_MAX_DATA_SIZE (15 * 1024)
++#endif
+ #define WEBSOCKETS_USE_BIG_MEM
+ #define GET_FREE_HEAP rp2040.getFreeHeap()
+ #define WEBSOCKETS_YIELD() yield()
+@@ -95,19 +101,25 @@
+ 
+ #elif defined(ARDUINO_UNOWIFIR4)
+ 
+-#define WEBSOCKETS_MAX_DATA_SIZE (15 * 1024)
++#ifndef WEBSOCKETS_MAX_DATA_SIZE
++#define WEBSOCKETS_MAX_DATA_SIZE (15 * 1024)
++#endif
+ #define WEBSOCKETS_YIELD() yield()
+ #define WEBSOCKETS_YIELD_MORE() delay(1)
+ 
+ #elif defined(ARDUINO_SAMD_MKRWIFI1010) || defined(ARDUINO_SAMD_NANO_33_IOT)
+ 
+-#define WEBSOCKETS_MAX_DATA_SIZE (15 * 1024)
++#ifndef WEBSOCKETS_MAX_DATA_SIZE
++#define WEBSOCKETS_MAX_DATA_SIZE (15 * 1024)
++#endif
+ #define WEBSOCKETS_YIELD() yield()
+ #define WEBSOCKETS_YIELD_MORE() delay(1)
+ 
+ #elif defined(WIO_TERMINAL) || defined(SEEED_XIAO_M0)
+ 
+-#define WEBSOCKETS_MAX_DATA_SIZE (15 * 1024)
++#ifndef WEBSOCKETS_MAX_DATA_SIZE
++#define WEBSOCKETS_MAX_DATA_SIZE (15 * 1024)
++#endif
+ #define WEBSOCKETS_YIELD() yield()
+ #define WEBSOCKETS_YIELD_MORE() delay(1)
+ 
+--- WebSockets-2.7.2/src/WebSocketsNetworkClientSecure.h
++++ lib/WebSockets/src/WebSocketsNetworkClientSecure.h
+@@ -1,34 +1,17 @@
+ #pragma once
+-
+-#include <WebSocketsNetworkClient.h>
+-
+-class WebSocketsNetworkClientSecure : public WebSocketsNetworkClient {
+-  public:
+-    WebSocketsNetworkClientSecure();
+-    WebSocketsNetworkClientSecure(WiFiClient wifi_client);
+-    virtual ~WebSocketsNetworkClientSecure();
+-
+-    int connect(IPAddress ip, uint16_t port) override;
+-    int connect(const char * host, uint16_t port) override;
+-    int connect(const char * host, uint16_t port, int32_t timeout) override;
+-    size_t write(uint8_t) override;
+-    size_t write(const uint8_t * buf, size_t size) override;
+-    size_t write(const char * str) override;
+-    int available() override;
+-    int read() override;
+-    int read(uint8_t * buf, size_t size) override;
+-    int peek() override;
+-    void flush() override;
+-    void stop() override;
+-    uint8_t connected() override;
+-    operator bool() override;
+-
+-    void setCACert(const char * rootCA);
+-#if ESP_ARDUINO_VERSION >= ESP_ARDUINO_VERSION_VAL(3, 0, 4)
+-    void setCACertBundle(const uint8_t * bundle, size_t bundle_size);
+-#else
+-    void setCACertBundle(const uint8_t * bundle);
+-#endif
+-    void setInsecure();
+-    bool verify(const char * fingerprint, const char * domain_name);
++#include <WiFiClientSecure.h>
++// The library's documented NETWORK_CUSTOM hook keeps TLS setup bounded without
++// changing the Arduino SDK or sharing a native TLS object across tasks.
++using WebSocketsNetworkClient = WiFiClient;
++class WebSocketsNetworkClientSecure : public WiFiClientSecure {
++public:
++    WebSocketsNetworkClientSecure() { setHandshakeTimeout(5); }
++    int setTimeout(uint32_t milliseconds) override {
++        // WebSockets passes milliseconds, while ESP32's WiFiClient uses seconds.
++        return WiFiClientSecure::setTimeout((milliseconds + 999) / 1000);
++    }
++    int connect(const char* host, uint16_t port, int32_t timeout) override {
++        if (!_CA_cert || !*_CA_cert || _use_insecure || !host || !*host) return 0;
++        return WiFiClientSecure::connect(host, port, timeout);
++    }
+ };
